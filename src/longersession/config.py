@@ -1,0 +1,61 @@
+"""配置模块。"""
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import BaseModel, Field
+
+
+class EncoderConfig(BaseModel):
+    """Encoder 配置（承接分数计算的可插拔 encoder）。"""
+
+    provider: str = "mock"  # mock | bge_m3
+    model_name: str = "BAAI/bge-m3"
+    lazy_load: bool = True
+    device: str = "cpu"
+    max_seq_length: int = 512
+
+
+class SegmentationConfig(BaseModel):
+    """切割配置（DP 切割 + overlap）。"""
+
+    # chunk 长度约束（按 turn 数）
+    min_chunk_turns: int = 2
+    max_chunk_turns: int = 20
+    # chunk 长度约束（按 token 数，软约束）
+    min_chunk_tokens: int = 64
+    max_chunk_tokens: int = 4096
+    # 承接分数阈值：score 越低越该切，DP 代价 = score - threshold
+    threshold: float = 0.5
+    # 模糊区（score 接近 threshold）宽度，用于决定 overlap
+    boundary_tolerance: float = 0.1
+    # overlap 覆盖的 turn 数（模糊区边界共享）
+    overlap_turns: int = 1
+
+
+class TopicConfig(BaseModel):
+    """Topic 标签配置。"""
+
+    provider: str = "mock"  # mock | llm
+    max_topic_length: int = 10  # topic 名最大字符数
+    embedding_dim: int = 1024  # BGE-M3 的 embedding 维度
+
+
+class StorageConfig(BaseModel):
+    """存储配置。"""
+
+    db_path: Path = Path("data/longersession.db")
+
+
+class Config(BaseModel):
+    """全局配置。"""
+
+    encoder: EncoderConfig = Field(default_factory=EncoderConfig)
+    segmentation: SegmentationConfig = Field(default_factory=SegmentationConfig)
+    topic: TopicConfig = Field(default_factory=TopicConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
+
+
+def get_config() -> Config:
+    """返回默认配置实例。"""
+    return Config()

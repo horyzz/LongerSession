@@ -1,0 +1,21 @@
+{
+  "case_id": "en-short-01",
+  "language": "en",
+  "length": "short",
+  "description": "English short dialogue: deployment (Docker) → data backup, two topics, includes list_files tool call",
+  "messages": [
+    {"role": "user", "content": "I want to deploy a web service. Can you help me choose an approach?"},
+    {"role": "assistant", "content": "Let me check your project structure first.", "tool_calls": [{"id": "call_1", "name": "list_files", "arguments": "{}"}]},
+    {"role": "tool", "content": "requirements.txt, app.py, README.md", "tool_call_id": "call_1"},
+    {"role": "assistant", "content": "It's a Python service. Main options are Docker, Docker Compose, and Kubernetes. For a small project, Docker is the simplest."},
+    {"role": "user", "content": "Let's go with Docker then. How do I actually deploy it?"},
+    {"role": "assistant", "content": "The Docker deployment flow: write a Dockerfile → build the image → push to a registry → pull and run on the server."},
+    {"role": "user", "content": "How do I manage image versions?"},
+    {"role": "assistant", "content": "Use tags for versioning, like v1.0.0. Push images to Docker Hub or a private registry like Harbor."},
+    {"role": "user", "content": "By the way, do you have any suggestions for data backup?"},
+    {"role": "assistant", "content": "For backup, take regular snapshots, back up critical data daily, and store backups off-site to avoid a single point of failure."},
+    {"role": "user", "content": "How do I decide backup frequency and retention?"},
+    {"role": "assistant", "content": "Typically, hot data gets daily incremental backups with weekly full backups, retained for 30 days. It depends on your RPO and RTO targets."}
+  ],
+  "boundaries": [3]
+}

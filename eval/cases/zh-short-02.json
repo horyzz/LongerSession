@@ -1,0 +1,23 @@
+{
+  "case_id": "zh-short-02",
+  "language": "zh",
+  "length": "short",
+  "description": "中文短对话：需求分析 → 性能优化 → 日志监控，三个话题，含 search_code 工具调用",
+  "messages": [
+    {"role": "user", "content": "帮我分析一下新功能的需求，运营团队想要一个报表导出功能"},
+    {"role": "assistant", "content": "我先看下现有代码结构。", "tool_calls": [{"id": "call_1", "name": "search_code", "arguments": "{\"pattern\": \"report\"}"}]},
+    {"role": "tool", "content": "找到 report 模块，已有 export.py", "tool_call_id": "call_1"},
+    {"role": "assistant", "content": "现有 report 模块可以复用。核心需求：支持 Excel 导出、按日期筛选、异步生成大报表。"},
+    {"role": "user", "content": "核心用户就是运营团队，他们每天要导出日报"},
+    {"role": "assistant", "content": "明白了，日报导出是高频场景。建议做成定时任务自动生成，运营早上直接下载，不需要手动触发。"},
+    {"role": "user", "content": "对了，系统现在响应很慢，报表一跑就超时，怎么优化？"},
+    {"role": "assistant", "content": "先定位瓶颈。常见原因：数据库查询慢、无索引、同步导出阻塞请求。建议先把导出改成异步任务。"},
+    {"role": "user", "content": "数据库查询慢这个怎么解决？"},
+    {"role": "assistant", "content": "可以加索引、优化 SQL、避免 N+1 查询。我可以帮你分析慢查询日志。"},
+    {"role": "user", "content": "上线后怎么监控日志和报错？"},
+    {"role": "assistant", "content": "可以用 ELK 或 Loki 收集日志，加上告警规则。关键接口要有结构化日志。"},
+    {"role": "user", "content": "Loki 和 ELK 怎么选？"},
+    {"role": "assistant", "content": "Loki 更轻量、和 Prometheus 集成好、成本低；ELK 功能全但重。小团队建议 Loki。"}
+  ],
+  "boundaries": [2, 4]
+}

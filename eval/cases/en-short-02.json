@@ -1,0 +1,23 @@
+{
+  "case_id": "en-short-02",
+  "language": "en",
+  "length": "short",
+  "description": "English short dialogue: requirements → performance → logging, three topics, includes search_code tool call",
+  "messages": [
+    {"role": "user", "content": "Help me analyze the requirements for a new feature: the ops team wants a report export function"},
+    {"role": "assistant", "content": "Let me check the existing code first.", "tool_calls": [{"id": "call_1", "name": "search_code", "arguments": "{\"pattern\": \"report\"}"}]},
+    {"role": "tool", "content": "Found report module, export.py exists", "tool_call_id": "call_1"},
+    {"role": "assistant", "content": "The existing report module can be reused. Core requirements: Excel export, date filtering, async generation for large reports."},
+    {"role": "user", "content": "The main users are the ops team, they export daily reports"},
+    {"role": "assistant", "content": "Daily report export is a high-frequency scenario. Consider a scheduled job that auto-generates them so ops can just download in the morning."},
+    {"role": "user", "content": "By the way, the system is slow and report export times out. How can I optimize it?"},
+    {"role": "assistant", "content": "First locate the bottleneck. Common causes: slow DB queries, missing indexes, synchronous export blocking requests. Start by making export async."},
+    {"role": "user", "content": "How do I fix the slow database queries?"},
+    {"role": "assistant", "content": "Add indexes, optimize SQL, avoid N+1 queries. I can help analyze the slow query log."},
+    {"role": "user", "content": "How should I monitor logs and errors after launch?"},
+    {"role": "assistant", "content": "Use ELK or Loki for log collection with alerting rules. Critical endpoints should have structured logging."},
+    {"role": "user", "content": "How do I choose between Loki and ELK?"},
+    {"role": "assistant", "content": "Loki is lighter, integrates well with Prometheus, and costs less. ELK is full-featured but heavy. For a small team, Loki is recommended."}
+  ],
+  "boundaries": [2, 4]
+}

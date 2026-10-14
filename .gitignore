@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 测试与覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 数据与模型（运行时生成/下载）
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.onnx
+
+# 下载的 benchmark 数据（可重新下载/转换）
+eval/tiage/anno_test.json
+eval/tiage/anno_test_dialogs.tsv
+eval/tiage/tiage_eval.json
+
+# IDE 与系统
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# 其他
+.vibepaws/
