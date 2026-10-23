@@ -11,9 +11,11 @@ class EncoderConfig(BaseModel):
 
     provider: str = "mock"  # mock | bge_m3
     model_name: str = "BAAI/bge-m3"
+    source: str = "modelscope"  # huggingface | modelscope（bge_m3 模型下载源）
+    local_dir: str | None = None  # 本地模型目录（平衡模型），设置后跳过下载
     lazy_load: bool = True
     device: str = "cpu"
-    max_seq_length: int = 512
+    max_seq_length: int = 2048  # 对齐训练口径（平衡模型 seq=2048）
 
 
 class SegmentationConfig(BaseModel):

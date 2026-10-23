@@ -71,8 +71,11 @@ LongerSession/
 ## 快速开始
 
 ```bash
-# 安装依赖（推荐 uv）
+# 安装依赖（推荐 uv，已默认走清华 PyPI 镜像，无需代理）
 uv sync --extra dev
+
+# 安装含 BGE-M3 encoder 的完整依赖
+uv sync --extra dev --extra encoder
 
 # 运行单元测试
 uv run pytest tests/
@@ -80,6 +83,10 @@ uv run pytest tests/
 # 校验 evaluation case
 python3 eval/loader.py
 ```
+
+> 国内网络说明：`pyproject.toml` 已通过 `[[tool.uv.index]]` 默认指向清华 PyPI 镜像；
+> BGE-M3 模型默认从 **ModelScope（魔搭）** 下载（`EncoderConfig.source="modelscope"`），
+> 均走国内直连，不依赖代理。
 
 ## 使用
 

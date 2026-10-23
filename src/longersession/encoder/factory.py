@@ -22,5 +22,7 @@ def create_encoder(config: EncoderConfig) -> Encoder:
             model_name=config.model_name,
             device=config.device,
             max_seq_length=config.max_seq_length,
+            source=config.source,
+            local_dir=config.local_dir,
         )
     raise ValueError(f"unknown encoder provider: {config.provider}")

@@ -24,6 +24,10 @@ data/
 *.sqlite3
 *.onnx
 
+# 保留 eval_longeval 的 benchmark 源数据（小文件，复现评测需要）
+!eval_longeval/data/
+!eval_longeval/data/**
+
 # 下载的 benchmark 数据（可重新下载/转换）
 eval/tiage/anno_test.json
 eval/tiage/anno_test_dialogs.tsv

@@ -32,16 +32,15 @@
 - 8 个人工构造 case，覆盖中英 × 长短四维度
 - 统一 case schema + 校验脚本（`eval/loader.py`）
 
+### ✅ 阶段 2：接 BGE-M3 真 encoder
+
+- BGE-M3 经 ModelScope 下载（国内直连，`source="modelscope"`），lazy load 正常
+- TIAGE：**F1=0.397**（th=0.65，词袋 0.329 → +20.7%），仍低于 RetroTS-T5 0.682
+- 自建 cases：**F1=0.625**（th=0.70，char_ngram 0.449 → +39%），en-long 0.105 → 0.421
+- 关键发现：BGE-M3 相邻 turn 余弦分布偏高，默认 threshold=0.5 偏低，需按 encoder 调阈值
+- 新增阈值扫描工具 `eval/sweep.py`
+
 ## Roadmap（未来）
-
-### ⬜ 阶段 2：接 BGE-M3 真 encoder
-
-| 项 | 内容 |
-|---|---|
-| 目标 | 用真实语义 embedding 替换词袋，验证切割质量上限 |
-| 产出 | TIAGE 上的 BGE-M3 基线数字，对照 RetroTS-T5 0.682 |
-| 动作 | `uv sync --extra encoder`；config 切 `provider=bge_m3`；重跑 `run_eval` |
-| 验收 | F1 较词袋（0.329）显著提升，接近或超过 RetroTS-T5 |
 
 ### ⬜ 阶段 3：telemetry 本地收集
 
@@ -61,14 +60,24 @@
 | 动作 | Assessor 接口；prompt 模板；批量/增量评估；抽检机制 |
 | 验收 | 用户配置 LLM 后能产出带真值的 eval 数据，抽检可校验 LLM 标签质量 |
 
-### ⬜ 阶段 5：对比学习训练切割模型
+### ✅ 阶段 5：对比学习训练切割模型
 
 | 项 | 内容 |
 |---|---|
-| 目标 | 训练专用"承接关系"小模型，替换/增强 encoder |
-| 产出 | 独立 sub-module：数据清洗 → SimCSE 式对比学习 → 承接分数模型 |
-| 动作 | 正样本 (q,a)/(a,q)，in-batch negatives；小 encoder（bge-small 起步）；消融 |
-| 验收 | 训练模型在 TIAGE 上 F1 超过 BGE-M3 零样本，且推理更快更小 |
+| 目标 | 训练专用"承接关系"模型，替换/增强 encoder |
+| 产出 | `training/` sub-module：OASST1/BELLE/任务型数据 → 对比学习 → 承接分数模型 |
+| 动作 | 正样本 (q,a)/(a,q) + 任务型 same_topic，in-batch negatives；bge-m3 MNRL |
+| 验收 | 训练模型在 TIAGE 上超过 BGE-M3 零样本，任务型分割大幅提升 |
+
+**结果（详见 `docs/milestones.md`）**：
+
+| 数据集 | 零样本 | OASST1 微调 | 任务型微调 | **平衡模型** |
+|---|---|---|---|---|
+| DialSeg711 held-out(211) | 0.561 | — | 0.795 | **0.841** |
+| TIAGE | 0.397 | **0.464** | 0.428 | 0.458 |
+| cases(8) | 0.625 | **0.708** | 0.694 | **0.708** |
+
+平衡模型（OASST1 + 任务型合并，seq=2048）三域占优或并列最优，为最终接入模型。
 
 ### ⬜ 阶段 6：数据飞轮
 
