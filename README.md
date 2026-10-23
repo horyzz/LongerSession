@@ -61,10 +61,9 @@ LongerSession/
 │   ├── topic/               # topic 标签器（LLM 自由生成）
 │   ├── index/               # 索引构建 + AggregatedView 聚合 + 增量 tag 聚类
 │   └── api/                 # FastAPI（POST /process、GET /query）
-├── eval/                    # evaluation case
-│   ├── README.md            #   case schema 与真值定义
-│   ├── loader.py            #   加载与校验脚本
-│   └── cases/               #   8 个 case（中英 × 长短）
+├── eval/                    # evaluation case（切割质量，Boundary F1）
+├── benchmarks/              # 合成 NIAH 基准（截断/压缩/索引）
+├── eval_longeval/           # LongEval 真实基准（DeepSeek API）
 └── tests/                   # 单元测试
 ```
 
@@ -108,6 +107,42 @@ GET /query
 python3 eval/loader.py   # 校验 schema、boundaries 合法性、维度覆盖
 ```
 
+## 有效性验证
+
+核心主张「索引 > 压缩 > 截断」用两套基准、真实模型验证：
+
+### 合成 NIAH 基准（`benchmarks/`）
+
+生成多 topic 长 session、埋入唯一 needle，对比三策略在受限 context 下能否找回：
+
+```bash
+uv run python -m benchmarks.run single     # 单次
+uv run python -m benchmarks.run sweep      # depth × budget 扫描
+uv run uvicorn benchmarks.service:app --port 8000
+```
+
+### LongEval 真实基准（`eval_longeval/`，DeepSeek API）
+
+用 LongEval（LongChat 版）topics 任务 + 单/多 needle，真实模型 `deepseek-flash` 对比四策略：
+
+```bash
+export deepseek_api_key=...
+uv run python -m eval_longeval.run 5,10 2 1500      # topics 任务
+uv run python -m eval_longeval.needle_qa            # 单 needle 定向检索
+uv run python -m eval_longeval.multi_needle         # 多 needle 信息密度
+uv run uvicorn eval_longeval.service:app --port 8001
+```
+
+| 场景 | 截断 | 压缩 | 索引 |
+|---|---|---|---|
+| topics（列出全部 topic） | 30% | 75% | **100%** |
+| 单 needle（定向检索） | 33% | 100%（但 10× token） | **100%（1/10 token）** |
+| 多 needle（10 个具体事实） | 20% | **0%** | **100%** |
+
+**结论**：索引是唯一「既 lossless 又便宜」的方案——单次 query 只读相关 chunk（约 600 token），
+而压缩要先全文摘要（约 6000 token），且随信息密度上升必然丢事实（10 个事实全丢）。
+详见 [eval_longeval/README.md](eval_longeval/README.md)。
+
 ## 当前状态
 
 | 模块 | 状态 |
@@ -130,3 +165,5 @@ python3 eval/loader.py   # 校验 schema、boundaries 合法性、维度覆盖
 - [Roadmap](docs/roadmap.md)
 - [Evaluation 说明](eval/README.md)
 - [TIAGE 基线结果](eval/tiage/baseline_results.md)
+- [合成 NIAH 基准说明](benchmarks/README.md)
+- [LongEval 真实基准说明](eval_longeval/README.md)
