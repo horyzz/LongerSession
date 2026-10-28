@@ -2,6 +2,42 @@
 
 项目迭代里程碑记录：版本号、release 说明、关键决策、产物路径快照。
 
+## M3 · 2026-10-24 数据飞轮闭环（阶段 3 telemetry → 阶段 4 LLM 评估 → 阶段 5 回训）
+
+### 一句话
+
+打通「telemetry 本地收集 → 用户自配 LLM 打 topic-shift 真值 → 回训切割模型」的端到端链路，为阶段 6 数据飞轮铺路。
+
+### 交付内容
+
+| 阶段 | 产物 | 位置 |
+|---|---|---|
+| 阶段 3 telemetry | `TelemetryRecord` + `TelemetryRecorder`，process 自动落 JSONL | `src/longersession/telemetry/` |
+| 阶段 4 评估器 | 可插拔 `Assessor`（Mock + OpenAI 兼容）+ prompt + 批量/增量 runner + 抽检 | `src/longersession/assessor/` |
+| 阶段 5 回训 | 真值→样本对 + 端到端编排 | `training/telemetry_pairs.py`、`training/flywheel.py` |
+
+### 关键决策
+
+1. **telemetry 存「原始 messages + 预测边界 + topics + chunks 摘要」**：原始消息供评估，预测边界供一致性抽检，chunks 摘要供审计，全部本地 JSONL 追加、默认开启（`config.telemetry.enabled` 可关）。
+2. **Assessor 用 stdlib urllib 而非 SDK**：OpenAI 兼容接口（DeepSeek/OpenAI/vLLM/Ollama 通用），零新依赖；api_key 从 `AssessorConfig.api_key` 或 `deepseek_api_key` 环境变量读，绝不打印落地。
+3. **边界语义全程统一**：telemetry 的 `predicted_boundaries`、assessor 真值 `boundaries`、切割管线的 `cuts` 都是「在第 k 个 turn 之后切」，与 eval 口径一致，避免转换 bug。
+4. **回训样本对复用既有 schema**：`same_topic`(label=1)/`cross_topic`(label=0)，text 用 `combined_text()` 剥离 tool，与 M1/M2 训练数据同构，可直接 merge 继续训。
+5. **抽检 = 采样导出 + 一致性信号**：`run_assessment(..., sample=N, sample_out=...)` 导出人工复核样本，`consistency`（预测 vs 真值 boundary F1）快速发现 LLM 标签异常。
+
+### 验收
+
+- 每次 process 自动落一条可审计 JSONL 记录（集成测试验证）。
+- Mock/OpenAI 评估器 + prompt + runner + 抽检全链路测试通过。
+- 真值 → 训练样本对 → flywheel 编排 dry-run 跑通。
+- **pytest 全量 36 passed**（既有 24 + 新增 12）。
+
+### 结论与下一步
+
+- 闭环已打通：`uv run python -m training.flywheel --telemetry ... --merge ... --train` 可一键评估并回训。
+- 下一步：接入真实 LLM 跑通一批 telemetry 数据，用抽检校验标签质量后触发回训，进入阶段 6 数据飞轮。
+
+---
+
 ## M2 · 2026-10-19 平衡模型训练完成（OASST1 + 任务型合并，seq=2048）
 
 ### 一句话

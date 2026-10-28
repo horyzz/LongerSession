@@ -62,13 +62,17 @@ def _build_chunks(
     return chunks
 
 
-def segment(
+def segment_with_boundaries(
     turns: list[Turn],
     encoder: Encoder,
     config: SegmentationConfig,
     session_id: str = "session",
-) -> list[Chunk]:
-    """把 turn 列表切割成 chunk 列表（含 overlap 与 used_tools）。"""
+) -> tuple[list[Chunk], list[int]]:
+    """切割并同时返回预测边界（供 telemetry 记录）。
+
+    返回 (chunks, cuts)：cuts 是 1-based 切点列表（在第 cuts[i] 个 turn 之后切），
+    与 eval 的 boundaries 口径一致。
+    """
     scores = compute_coherence_scores(turns, encoder)
     cuts = dp_segment(
         scores,
@@ -76,4 +80,14 @@ def segment(
         max_len=config.max_chunk_turns,
         threshold=config.threshold,
     )
-    return _build_chunks(turns, cuts, session_id, config.overlap_turns)
+    return _build_chunks(turns, cuts, session_id, config.overlap_turns), cuts
+
+
+def segment(
+    turns: list[Turn],
+    encoder: Encoder,
+    config: SegmentationConfig,
+    session_id: str = "session",
+) -> list[Chunk]:
+    """把 turn 列表切割成 chunk 列表（含 overlap 与 used_tools）。"""
+    return segment_with_boundaries(turns, encoder, config, session_id)[0]

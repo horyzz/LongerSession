@@ -42,7 +42,7 @@
 
 ## Roadmap（未来）
 
-### ⬜ 阶段 3：telemetry 本地收集
+### ✅ 阶段 3：telemetry 本地收集
 
 | 项 | 内容 |
 |---|---|
@@ -51,7 +51,9 @@
 | 动作 | 加 telemetry hook；JSONL 追加存储；隐私默认本地 |
 | 验收 | 每次 process 自动落一条本地记录，可审计、可回溯 |
 
-### ⬜ 阶段 4：LLM 评估器（用户配置）
+**结果**：`src/longersession/telemetry/` 提供 `TelemetryRecord` + `TelemetryRecorder`（线程安全 JSONL 追加）；`Service.process` 每次自动落一条含 `messages / predicted_boundaries / topics / chunks` 的记录（`config.telemetry.enabled` 可关闭）。
+
+### ✅ 阶段 4：LLM 评估器（用户配置）
 
 | 项 | 内容 |
 |---|---|
@@ -59,6 +61,8 @@
 | 产出 | 可插拔 Assessor 抽象 + 默认评估 prompt；telemetry 数据 → 带真值的 eval 数据 |
 | 动作 | Assessor 接口；prompt 模板；批量/增量评估；抽检机制 |
 | 验收 | 用户配置 LLM 后能产出带真值的 eval 数据，抽检可校验 LLM 标签质量 |
+
+**结果**：`src/longersession/assessor/` 提供可插拔 `Assessor`（`MockAssessor` + `OpenAICompatAssessor`，urllib 调任意 OpenAI 兼容接口，base_url/api_key/model 可配）；`runner.run_assessment` 批量/增量把 telemetry → 带真值 boundaries 的统一 eval case（`data/telemetry/eval/`，已注册为 `telemetry` 数据集），并内置抽检采样导出 + 预测/真值一致性统计。
 
 ### ✅ 阶段 5：对比学习训练切割模型
 
@@ -78,6 +82,8 @@
 | cases(8) | 0.625 | **0.708** | 0.694 | **0.708** |
 
 平衡模型（OASST1 + 任务型合并，seq=2048）三域占优或并列最优，为最终接入模型。
+
+**回训闭环（阶段 3→4→5）**：新增 `training/telemetry_pairs.py`（带真值 eval → same_topic/cross_topic 样本对，复用 schema）+ `training/flywheel.py`（telemetry → LLM 评估 → 样本对 → 调 `training.train` 回训的一键编排，支持 `--merge` 合并历史数据、`--train` 触发训练）。
 
 ### ⬜ 阶段 6：数据飞轮
 

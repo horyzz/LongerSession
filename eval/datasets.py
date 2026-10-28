@@ -7,6 +7,7 @@ from pathlib import Path
 DATASET_PATHS: dict[str, Path] = {
     "tiage": Path("eval/tiage/tiage_eval.json"),
     "cases": Path("eval/cases"),
+    "telemetry": Path("data/telemetry/eval"),
 }
 
 
@@ -23,6 +24,14 @@ def load_dataset(name: str) -> list[dict]:
         return [
             json.load(open(f, "r", encoding="utf-8"))
             for f in sorted(DATASET_PATHS["cases"].glob("*.json"))
+        ]
+    if name == "telemetry":
+        p = DATASET_PATHS["telemetry"]
+        if not p.exists():
+            return []
+        return [
+            json.load(open(f, "r", encoding="utf-8"))
+            for f in sorted(p.glob("*.json"))
         ]
     raise ValueError(f"unknown dataset: {name}")
 

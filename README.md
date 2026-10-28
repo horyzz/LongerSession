@@ -60,6 +60,8 @@ LongerSession/
 │   ├── encoder/             # 可插拔 encoder（承接分数，baseline BGE-M3）
 │   ├── topic/               # topic 标签器（LLM 自由生成）
 │   ├── index/               # 索引构建 + AggregatedView 聚合 + 增量 tag 聚类
+│   ├── telemetry/           # telemetry 本地收集（阶段 3，JSONL 追加）
+│   ├── assessor/            # LLM 评估器（阶段 4，可插拔 + OpenAI 兼容）
 │   └── api/                 # FastAPI（POST /process、GET /query）
 ├── eval/                    # evaluation case（切割质量，Boundary F1）
 ├── benchmarks/              # 合成 NIAH 基准（截断/压缩/索引）
@@ -97,6 +99,41 @@ POST /process
 
 # 查询：沿 previous 链定位相关历史内容
 GET /query
+```
+
+### MCP 接入（插件化）
+
+除 HTTP 外，也可把 `process` / `query` 作为 MCP 工具接入 pi、OpenAI Agents SDK、Claude 等：
+
+```bash
+# 安装 mcp 可选依赖
+uv sync --extra mcp
+
+# pi：stdio 方式（本机进程）
+pi mcp add longer -- uv run fastmcp run longersession.mcp.server:mcp
+
+# pi：HTTP 方式（远程/团队共享）
+uv run fastmcp run longersession.mcp.server:mcp --transport http --port 8002
+pi mcp add longer --url http://localhost:8002/mcp
+
+# 验证
+pi mcp list --json
+```
+
+### API embedding encoder
+
+`encoder.provider` 支持 `api`：调用任意 OpenAI 兼容 `/embeddings` 接口生成 embedding，无需下载本地模型：
+
+```python
+from longersession.config import Config, EncoderConfig
+
+cfg = Config(encoder=EncoderConfig(
+    provider="api",
+    api_base_url="https://api.openai.com/v1",  # 或其它 OpenAI 兼容服务
+    api_model="text-embedding-3-small",        # 服务支持的 embedding 模型名
+    api_key="",                                 # 留空则从 api_key_env 读取
+    api_key_env="openai_api_key",
+))
 ```
 
 ## 评估
@@ -143,6 +180,35 @@ uv run uvicorn eval_longeval.service:app --port 8001
 而压缩要先全文摘要（约 6000 token），且随信息密度上升必然丢事实（10 个事实全丢）。
 详见 [eval_longeval/README.md](eval_longeval/README.md)。
 
+## 数据飞轮（阶段 3 telemetry → 阶段 4 LLM 评估 → 阶段 5 回训）
+
+一次 process 自动落一条本地 telemetry 记录；用你自己的 LLM 打 topic-shift 真值；再把真值转成训练样本对回训切割模型：
+
+```bash
+# 阶段 3：telemetry 默认开启（config.telemetry.enabled），每次 /process 追加到
+# data/telemetry/sessions.jsonl，含原始 messages + 预测边界 + topics + chunks 摘要
+
+# 阶段 4：用你的 LLM（OpenAI 兼容接口）给 telemetry 数据打真值边界
+#   api_key 从 deepseek_api_key 环境变量读，或 --api-key 传入；默认 DeepSeek，可 --base-url/--model 换
+uv run python -m longersession.assessor.runner \
+    --telemetry data/telemetry/sessions.jsonl \
+    --out data/telemetry/eval --provider openai --resume \
+    --sample 5 --sample-out data/telemetry/audit_sample.json
+
+# 阶段 5：真值 → 训练样本对（复用 training schema）
+uv run python -m training.telemetry_pairs \
+    --eval-dir data/telemetry/eval \
+    --out data/training/pairs_telemetry.jsonl
+
+# 一键闭环：telemetry → 评估 → 样本对 → 合并历史数据 → 回训
+uv run python -m training.flywheel \
+    --telemetry data/telemetry/sessions.jsonl \
+    --merge data/training/pairs_merged.jsonl \
+    --train --model BAAI/bge-m3 --output-dir data/training/model_flywheel --epochs 2
+```
+
+详见 [docs/roadmap.md](docs/roadmap.md) 阶段 3/4/5 与 [docs/milestones.md](docs/milestones.md) M3。
+
 ## 当前状态
 
 | 模块 | 状态 |
@@ -156,7 +222,10 @@ uv run uvicorn eval_longeval.service:app --port 8001
 | topic 标签器 | ✅ 完成 |
 | 三层索引 + 聚合 | ✅ 完成 |
 | 两个 API | ✅ 完成 |
-| 对比学习训练（独立 sub-module） | ⏳ 规划中 |
+| 对比学习训练（独立 sub-module + 平衡模型） | ✅ 完成 |
+| telemetry 本地收集（阶段 3） | ✅ 完成 |
+| LLM 评估器打真值（阶段 4） | ✅ 完成 |
+| 数据飞轮回训闭环（阶段 3→4→5） | ✅ 完成 |
 
 ## 相关文档
 

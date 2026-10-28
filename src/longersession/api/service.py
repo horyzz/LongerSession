@@ -13,8 +13,10 @@ from longersession.index.aggregate import AggregatedView, build_aggregated_view
 from longersession.index.builder import build_session_index
 from longersession.index.store import Store
 from longersession.segmentation.preprocess import messages_to_turns
-from longersession.segmentation.segmenter import segment
+from longersession.segmentation.segmenter import segment_with_boundaries
 from longersession.topic.labeller import Labeller, LLMLabeller, MockLabeller
+from longersession.telemetry import TelemetryRecorder, TelemetryRecord
+from longersession.telemetry.telemetry import now_iso
 
 
 class Service:
@@ -25,6 +27,11 @@ class Service:
         self.encoder = create_encoder(config.encoder)
         self.labeller = self._create_labeller(config)
         self.store = Store(config.storage.db_path)
+        self.telemetry = (
+            TelemetryRecorder(config.telemetry.path)
+            if config.telemetry.enabled
+            else None
+        )
         self._view_cache: dict[str, AggregatedView] = {}
 
     def _create_labeller(self, config: Config) -> Labeller:
@@ -37,12 +44,31 @@ class Service:
     def process(self, req: ProcessRequest) -> ProcessResponse:
         """完整链路：消息 → turns → 切割 → 打 topic → 构建索引 → 存储。"""
         turns = messages_to_turns(req.messages)
-        chunks = segment(turns, self.encoder, self.config.segmentation, req.session_id)
+        chunks, cuts = segment_with_boundaries(
+            turns, self.encoder, self.config.segmentation, req.session_id
+        )
         session_index = build_session_index(
             req.session_id, req.previous, chunks, turns, self.labeller
         )
         self.store.save_session(session_index, turns)
         topics = sorted({c.topic for c in chunks if c.topic})
+
+        if self.telemetry is not None:
+            self.telemetry.record(
+                TelemetryRecord(
+                    timestamp=now_iso(),
+                    session_id=req.session_id,
+                    previous=req.previous,
+                    encoder=self.config.encoder.provider,
+                    num_turns=len(turns),
+                    num_chunks=len(chunks),
+                    messages=[m.model_dump(mode="json") for m in req.messages],
+                    predicted_boundaries=cuts,
+                    topics=topics,
+                    chunks=[c.model_dump(mode="json") for c in chunks],
+                )
+            )
+
         return ProcessResponse(
             session_id=req.session_id,
             num_turns=len(turns),
