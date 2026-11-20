@@ -40,7 +40,7 @@ class BGEM3Encoder(Encoder):
         self,
         model_name: str = "BAAI/bge-m3",
         device: str = "cpu",
-        max_seq_length: int = 2048,
+        max_seq_length: int = 8192,
         source: str = "modelscope",  # huggingface | modelscope
         local_dir: str | None = None,  # 已下载的本地目录，跳过下载
         allow_patterns: list[str] | None = None,  # modelscope 下载白名单
@@ -73,7 +73,7 @@ class BGEM3Encoder(Encoder):
 
         path = self._resolve_model_path()
         self._model = SentenceTransformer(path, device=self.device)
-        # 应用截断长度（与训练对齐；之前漏了这行导致默认 8192）
+        # 应用截断长度（默认 8192，与 BGE-M3 一致）
         self._model.max_seq_length = self.max_seq_length
 
     def encode(self, texts: list[str]) -> list[list[float]]:

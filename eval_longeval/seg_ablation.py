@@ -56,13 +56,20 @@ def run_ablation() -> dict:
     enc_bge = BGEM3Encoder(
         model_name="BAAI/bge-m3",
         device="mps",
-        max_seq_length=2048,
+        max_seq_length=8192,
         local_dir="data/models/longersession_model_balanced",
+    )
+    enc_longctx = BGEM3Encoder(
+        model_name="BAAI/bge-m3",
+        device="mps",
+        max_seq_length=8192,
+        local_dir="data/models/longersession_model_longctx",
     )
 
     encoders = [
         ("char_ngram (thr=0.5)", enc_ngram, 0.5),
         ("bge_m3-balanced (thr=0.63)", enc_bge, 0.63),
+        ("bge_m3-longctx8192 (thr=0.63)", enc_longctx, 0.63),
     ]
 
     per_case = []

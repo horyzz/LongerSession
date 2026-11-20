@@ -15,7 +15,7 @@ class EncoderConfig(BaseModel):
     local_dir: str | None = None  # 本地模型目录（平衡模型），设置后跳过下载
     lazy_load: bool = True
     device: str = "cpu"
-    max_seq_length: int = 2048  # 对齐训练口径（平衡模型 seq=2048）
+    max_seq_length: int = 8192  # 与 BGE-M3 一致（max_position_embeddings=8194，8192 为有效最大输入）
     # API encoder（OpenAI 兼容 embeddings 接口，无需本地模型）
     api_base_url: str = "https://api.openai.com/v1"
     api_key: str = ""  # 留空则从 api_key_env 环境变量读取

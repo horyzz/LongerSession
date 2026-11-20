@@ -61,8 +61,22 @@ def main(argv: list[str] | None = None) -> int:
                    help="MNRL 温度系数（越小越尖锐）")
     p.add_argument("--max-pairs", type=int, default=None,
                    help="最多用多少正样本对（调试用）")
-    p.add_argument("--fp16", action="store_true", help="GPU 上开启混合精度")
+    p.add_argument("--fp16", action="store_true", help="GPU 上开启 fp16 混合精度")
+    p.add_argument("--bf16", action="store_true",
+                   help="GPU 上开启 bf16 混合精度（A100/L4 推荐，更稳）")
+    p.add_argument("--max-seq-length", type=int, default=8192,
+                   help="训练截断长度（长上下文对齐 bge-m3 的 8192）")
+    p.add_argument("--gradient-checkpointing", action="store_true",
+                   help="开启梯度检查点（8192 长序列省显存；需 transformers<5）")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--warmup-ratio", type=float, default=0.1,
+                   help="warmup 比例（默认 10%，对齐平衡模型配方，防梯度爆炸）")
+    p.add_argument("--lr-scheduler-type", default="cosine",
+                   help="LR 调度器（cosine 对齐平衡模型配方）")
+    p.add_argument("--max-grad-norm", type=float, default=1.0,
+                   help="梯度裁剪阈值")
+    p.add_argument("--attn-impl", default="sdpa",
+                   help="attention 实现：flash_attention_2（需装 flash-attn）| sdpa | eager")
     args = p.parse_args(argv)
 
     pairs = load_positive_pairs(args.data, args.max_pairs)
@@ -71,7 +85,23 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"正样本对数量: {len(pairs)}", file=sys.stderr)
 
-    model = SentenceTransformer(args.model)
+    attn_impl = args.attn_impl
+    if attn_impl == "flash_attention_2":
+        try:
+            import flash_attn  # noqa: F401
+        except ImportError:
+            print("[warn] flash-attn 未安装，回退到 sdpa", file=sys.stderr)
+            attn_impl = "sdpa"
+    model = SentenceTransformer(
+        args.model, model_kwargs={"attn_implementation": attn_impl}
+    )
+    model.max_seq_length = args.max_seq_length  # 长上下文对齐训练截断
+    if args.gradient_checkpointing:
+        try:
+            model.gradient_checkpointing_enable()
+        except (AttributeError, TypeError):
+            # 旧版 sentence-transformers(<6) 无此方法 / transformers 5.x 参数不兼容
+            model[0].auto_model.gradient_checkpointing_enable()
     dataset = Dataset.from_list(pairs)  # 列：anchor, positive
     loss = MultipleNegativesRankingLoss(model, scale=args.scale)
 
@@ -81,7 +111,10 @@ def main(argv: list[str] | None = None) -> int:
         per_device_train_batch_size=args.batch_size,
         learning_rate=args.lr,
         fp16=args.fp16,
-        bf16=False,
+        bf16=args.bf16,
+        warmup_ratio=args.warmup_ratio,
+        lr_scheduler_type=args.lr_scheduler_type,
+        max_grad_norm=args.max_grad_norm,
         logging_steps=50,
         save_strategy="epoch",
         seed=args.seed,

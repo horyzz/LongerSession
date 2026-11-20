@@ -115,3 +115,36 @@ uv run python -m training.train \
 ⚠️ Colab 需先降级 transformers：`!pip install -q "transformers<5"`（5.x 与
 sentence-transformers 6.1.0 不兼容，`gradient_checkpointing_enable` 会崩）。
 训练配方与决策见 `docs/milestones.md` M2。
+
+### 长上下文（8192）重训 —— UltraChat 增强数据
+
+把「逐 turn 独立 encode」升级为「encode 长历史 → 判断下一轮承接」，encoder 真正吃到 8192。
+
+**数据**：UltraChat（MIT 协议，多轮对话）为主，滚动窗口 + 多段拼接增强：
+- `training/augment_long_context.py`：读 UltraChat parquet → 生成 `(长历史, 下一轮)` 样本对。
+- 短/中上下文（对话内滚动窗口，`qa`/`aq`）+ 长上下文（跨对话拼接，`long_ctx`）+ 跨对话边界硬负样本（`hard_neg`）。
+- 产物 `data/training/pairs_ultrachat_long.jsonl`（60,000 对；约 47% 短 + 53% 长[4096~8192] + 5% 硬负），`.jsonl.gz` 约 405MB。
+
+```bash
+# 重新生成增强数据（需先下载 UltraChat parquet 到 data/raw/ultrachat/）
+uv run python -m training.augment_long_context \
+  --input-dir data/raw/ultrachat \
+  --out data/training/pairs_ultrachat_long.jsonl \
+  --max-dialogues 5000 --max-pairs 60000 \
+  --max-history-tokens 8192 --min-history-tokens 2048
+```
+
+**训练**（GPU/Colab，`training/colab_long_context.ipynb`，或本地 `train.py`）：
+
+```bash
+# 轻量首版（推荐）：5k 子集（3500 长 + 1500 短），A100 约 7h
+uv run python -m training.train \
+  --data data/training/pairs_ultrachat_5k.jsonl \
+  --model BAAI/bge-m3 --max-seq-length 8192 --gradient-checkpointing \
+  --epochs 1 --batch-size 8 --lr 2e-5 --fp16
+```
+
+⚠️ **成本实测**（Colab T4）：bge-m3 × 8192 约 **19 秒/样本**（峰值显存 11.76GB，不 OOM）。
+全量 60k × 2 epoch ≈ 630h(T4) / 150h(A100)，不现实；5k × 1 epoch ≈ 7h(A100)。
+所以首版用 `pairs_ultrachat_5k.jsonl.gz`（43MB），效果好再增量。
+训练后模型 `EncoderConfig(local_dir=..., max_seq_length=8192)` 接入切割管线。
